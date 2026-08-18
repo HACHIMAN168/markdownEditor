@@ -258,7 +258,7 @@ async function main() {
     if (b.status !== 200) throw new Error(`查询构建状态失败 (HTTP ${b.status}): ${b.raw}`);
     last = b.json;
     console.log(`    [${(i + 1) * 10}s] status=${last.status}`);
-    if (last.status === 'success') break;
+    if (last.status === 'success' || last.status === 'built') break;
     if (last.status === 'error') throw new Error(`Pages 构建失败: ${JSON.stringify(last.error || last)}`);
   }
 
@@ -274,7 +274,7 @@ async function main() {
   console.log(`Pages:      ${site.html_url}`);
   console.log(`Pages 状态: ${site.status}${last ? ` (最后构建: ${last.status})` : ''}`);
   console.log(`提交 sha:   ${commit.sha}`);
-  if (!last || last.status !== 'success') {
+  if (!last || (last.status !== 'success' && last.status !== 'built')) {
     console.log(`注意: 构建尚未成功,稍后可刷新 ${site.html_url} 查看。`);
   }
   console.log(`本地同步:   git update-ref refs/heads/main ${commit.sha}`);
