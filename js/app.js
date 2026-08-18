@@ -8,6 +8,8 @@ const App = (() => {
     title: document.getElementById('note-title'),
     content: document.getElementById('note-content'),
     preview: document.getElementById('preview-area'),
+    btnBackList: document.getElementById('btn-back-list'),
+    btnToggleView: document.getElementById('btn-toggle-view'),
   };
 
   let notes = [];
@@ -16,6 +18,32 @@ const App = (() => {
   let saveTimer = null;
   let moreMenu = null;
   let menuNoteId = null;
+  let mobileView = null;
+
+  function isMobileMode() {
+    return window.matchMedia('(max-width: 767px)').matches;
+  }
+
+  function setMobileView(view) {
+    mobileView = view;
+    applyMobileView();
+  }
+
+  function applyMobileView() {
+    document.body.classList.remove('m-view-list', 'm-view-editor', 'm-view-preview');
+    if (!isMobileMode()) {
+      mobileView = null;
+      return;
+    }
+    if (mobileView === null) {
+      mobileView = 'list';
+    }
+    document.body.classList.add('m-view-' + mobileView);
+    el.btnToggleView.textContent = mobileView === 'preview' ? '编辑' : '预览';
+    if (mobileView === 'preview') {
+      renderPreview();
+    }
+  }
 
   function init() {
     notes = Storage.load();
@@ -25,6 +53,9 @@ const App = (() => {
     renderList();
     syncEditor();
     window.addEventListener('beforeunload', flushSave);
+    window.addEventListener('pagehide', flushSave);
+    window.matchMedia('(max-width: 767px)').addEventListener('change', applyMobileView);
+    applyMobileView();
   }
 
   function createMoreMenu() {
@@ -79,6 +110,10 @@ const App = (() => {
       }
     });
     el.list.addEventListener('scroll', closeNoteMenu);
+    el.btnBackList.addEventListener('click', () => setMobileView('list'));
+    el.btnToggleView.addEventListener('click', () => {
+      setMobileView(mobileView === 'preview' ? 'editor' : 'preview');
+    });
   }
 
   function openNoteMenu(id, btn) {
@@ -94,6 +129,9 @@ const App = (() => {
     exportSub.appendChild(createMenuItem('导出为 Markdown (.md)', () => exportNote('md')));
     exportSub.appendChild(createMenuItem('导出为 HTML (.html)', () => exportNote('html')));
     exportParent.appendChild(exportSub);
+    exportParent.addEventListener('click', () => {
+      exportParent.classList.toggle('open');
+    });
 
     const sep = document.createElement('div');
     sep.className = 'more-menu-sep';
@@ -228,6 +266,9 @@ const App = (() => {
     selectedId = note.id;
     renderList();
     syncEditor();
+    if (isMobileMode()) {
+      setMobileView('editor');
+    }
     el.title.focus();
     el.title.select();
   }
@@ -240,6 +281,9 @@ const App = (() => {
     selectedId = id;
     renderList();
     syncEditor();
+    if (isMobileMode()) {
+      setMobileView('editor');
+    }
   }
 
   function deleteNote(id) {

@@ -19,9 +19,9 @@
 ## Product = Markdown note tool (no backend)
 - Pure static frontend; no server, no database. All data in browser **LocalStorage** as a JSON array.
 - Note shape: `{id, title, content, createTime, updateTime}`; `id` is base36 timestamp+random via `Date.now().toString(36)` + random suffix.
-- Three-column layout: left = note list (sorted by updateTime desc, selected note highlighted), middle = editor, right = live preview (fixed 45% width).
+- Three-column layout (PC): left = note list (sorted by updateTime desc, selected note highlighted), middle = editor, right = live preview (fixed 45% width). On screens <768px: single-view switching (list/editor/preview) via `m-view-*` body classes, driven by `matchMedia` in `js/app.js`; top toolbar (`#btn-back-list`, `#btn-toggle-view`) in `index.html`; CSS in `css/style.css` under the `@media (max-width: 767px)` and `@media (hover: none)` blocks.
 - Autosave with **500ms debounce**; also save on switch/close (`beforeunload`).
 - Malformed LocalStorage data must reset to empty array rather than crash.
 - Search filters title+content in-memory (case-insensitive, trimmed); delete requires confirmation and is permanent.
 - Preview renders markdown with syntax highlighting, dark theme default, code wraps to avoid overflow.
-- PC-only; target latest Chrome/Edge/Firefox. Mobile is out of scope.
+- Supports PC and mobile browsers; mobile data is local-only (no cross-device sync). Target latest Chrome/Edge/Firefox and iOS/Android mobile browsers. Save fallback uses `beforeunload` + `pagehide` (the latter matters on iOS).

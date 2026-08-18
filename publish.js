@@ -12,10 +12,12 @@
  *   7. 轮询 Pages 构建状态并输出访问地址
  *
  * 用法:
- *   node publish.js [--token-file <临时Token文件>]
+ *   node publish.js [--token-file <临时Token文件>] [--message <提交信息>]
  *   或设置环境变量 GITHUB_TOKEN。
  *
  * 说明:
+ *   - 增量发布:新提交以远程当前 HEAD 为父提交,历史不断累积;
+ *     仅当远程分支不存在(全新仓库)时创建分支,非快进时才强制更新。
  *   - 本机 hosts 把 api.github.com 指向 127.0.0.1,因此脚本用
  *     dns.resolve4() 获取真实 IP,以 host=<IP> + servername 方式连接,
  *     绕过 hosts 劫持;正常环境同样适用。
@@ -30,7 +32,7 @@ const path = require('path');
 const OWNER = 'HACHIMAN168';
 const REPO = 'markdownEditor';
 const BRANCH = 'main';
-const COMMIT_MESSAGE = 'Initial commit: Markdown note editor (pure static frontend)';
+const DEFAULT_COMMIT_MESSAGE = 'Initial commit: Markdown note editor (pure static frontend)';
 const AUTHOR = { name: 'HACHIMAN168', email: 'HACHIMAN168@users.noreply.github.com' };
 
 const API_HOST = 'api.github.com';
@@ -41,6 +43,11 @@ let TOKEN = null;
 let TOKEN_FILE = null;
 
 // ---------- 参数与 Token ----------
+function getCommitMessage() {
+  const idx = process.argv.indexOf('--message');
+  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1];
+  return DEFAULT_COMMIT_MESSAGE;
+}
 function getToken() {
   const idx = process.argv.indexOf('--token-file');
   if (idx !== -1 && process.argv[idx + 1]) {
@@ -198,12 +205,16 @@ async function main() {
   );
 
   console.log('==> 6/9 创建提交...');
+  // 查询远程当前 HEAD,作为增量提交的父提交(全新仓库则无父提交)
+  const refHead = await api('GET', `/repos/${owner}/${REPO}/git/ref/heads/${BRANCH}`);
+  const parentSha = refHead.status === 200 ? refHead.json.object.sha : null;
+  console.log(`    远程 ${BRANCH} 当前指向: ${parentSha || '(不存在)'}`);
   const now = new Date().toISOString();
   const commit = expect(
     await api('POST', `/repos/${owner}/${REPO}/git/commits`, {
-      message: COMMIT_MESSAGE,
+      message: getCommitMessage(),
       tree: t.sha,
-      parents: [],
+      parents: parentSha ? [parentSha] : [],
       author: { ...AUTHOR, date: now },
       committer: { ...AUTHOR, date: now },
     }),
@@ -220,12 +231,18 @@ async function main() {
   if (refRes.status === 201) {
     console.log(`    已创建分支 ${BRANCH}`);
   } else if (refRes.status === 422) {
-    expect(
-      await api('PATCH', `/repos/${owner}/${REPO}/git/refs/heads/${BRANCH}`, { sha: commit.sha, force: true }),
-      [200],
-      '更新分支'
-    );
-    console.log(`    分支 ${BRANCH} 已存在,force 更新到新提交`);
+    // 分支已存在:先尝试快进更新,非快进时再强制更新
+    const ff = await api('PATCH', `/repos/${owner}/${REPO}/git/refs/heads/${BRANCH}`, { sha: commit.sha, force: false });
+    if (ff.status === 200) {
+      console.log(`    分支 ${BRANCH} 快进更新到新提交`);
+    } else {
+      expect(
+        await api('PATCH', `/repos/${owner}/${REPO}/git/refs/heads/${BRANCH}`, { sha: commit.sha, force: true }),
+        [200],
+        '更新分支'
+      );
+      console.log(`    分支 ${BRANCH} 非快进,force 更新到新提交`);
+    }
   } else {
     throw new Error(`创建分支失败 (HTTP ${refRes.status}): ${refRes.raw}`);
   }
